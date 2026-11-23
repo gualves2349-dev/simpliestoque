@@ -37,3 +37,7 @@ Abra `index.html` no navegador e clique **Entrar na demonstração**. Os dados f
 - Botão **Criar estoque fictício** cadastra quatro produtos reais no Firestore da empresa, para testar em dois aparelhos. Use em estabelecimento de testes.
 - Para testar, publique em HTTPS, configure Firebase e regras, crie o estabelecimento, abra a mesma conta em dois navegadores ou aprove outro operador; retire uma unidade no tablet 1 e confira o tablet 2.
 - **Atenção**: antes de vender, endurecer regras Firestore / usar backend de confiança para validar movimentações. O estado sincronizado não elimina essa vulnerabilidade existente na v2.
+
+## Correção de configuração — 23/11/2026
+O arquivo `firebase-config.js` já está preenchido com o projeto `simpliestoque` e expõe `window.SIMPLIESTOQUE_FIREBASE`, conforme esperado por `app.js`. Não substitua pelo snippet `import { initializeApp } from "firebase/app"` do console, que exige bundler.
+Para testar, publique todos os arquivos na raiz do GitHub Pages, faça recarga forçada (Ctrl+F5), habilite Authentication > E-mail/senha e adicione o domínio GitHub Pages em Authentication > Settings > Authorized domains. Publique as regras de `firestore.rules` no console do Firestore.
