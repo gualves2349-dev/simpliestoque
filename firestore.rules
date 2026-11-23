@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signed() { return request.auth != null; }
+  function orgPath(org) { return /databases/$(database)/documents/orgs/$(org); }
+  function memberPath(org, who) { return /databases/$(database)/documents/orgs/$(org)/members/$(who); }
+  function membershipPath(who, org) { return /databases/$(database)/documents/users/$(who)/memberships/$(org); }
+  function member(org) { return signed() && exists(memberPath(org, request.auth.uid)); }
+  function admin(org) { return member(org) && get(memberPath(org, request.auth.uid)).data.role == 'admin'; }
+  function operatorOrAdmin(org) { return member(org); }
+  function validProduct() { return request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 && request.resource.data.qty is number && request.resource.data.qty >= 0 && request.resource.data.min is number && request.resource.data.min >= 0 && request.resource.data.price is number && request.resource.data.price >= 0; }
+  match /orgs/{org} {
+   allow get: if signed(); // permite validar código antes de pedir acesso
+   allow list: if false;
+   allow create: if signed() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.name is string && request.resource.data.name.size() > 0;
+   allow update, delete: if false;
+   match /members/{who} {
+    allow get: if signed() && (who == request.auth.uid || admin(org));
+    allow list: if admin(org);
+    allow create: if signed() && (
+      (who == request.auth.uid && getAfter(orgPath(org)).data.ownerUid == who && request.resource.data.role == 'admin') ||
+      (admin(org) && request.resource.data.role == 'operator' && getAfter(membershipPath(who, org)).data.role == 'operator')
+    );
+    allow update: if false;
+    allow delete: if admin(org) && who != request.auth.uid && resource.data.role != 'admin';
+   }
+   match /requests/{who} {
+    allow get: if signed() && (who == request.auth.uid || admin(org));
+    allow list: if admin(org);
+    allow create: if signed() && who == request.auth.uid && request.resource.data.email == request.auth.token.email && request.resource.data.status == 'pending';
+    allow update: if admin(org) && resource.data.status == 'pending' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['approved','rejected'];
+    allow delete: if false;
+   }
+   match /products/{product} {
+    allow read: if member(org);
+    allow create, delete: if admin(org) && (request.method == 'delete' || validProduct());
+    allow update: if (admin(org) && validProduct()) || (operatorOrAdmin(org) && validProduct() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['qty','price','supplier','lastPurchaseDate']));
+   }
+   match /movements/{movement} {
+    allow read: if member(org);
+    allow create: if member(org) && request.resource.data.actorUid == request.auth.uid && request.resource.data.type in ['saida','entrada','compra','ajuste'] && (request.resource.data.type != 'ajuste' || admin(org)) && request.resource.data.quantity is number && request.resource.data.quantity >= 0 && request.resource.data.after is number && request.resource.data.after >= 0;
+    allow update, delete: if false;
+   }
+  }
+  match /users/{who}/memberships/{org} {
+   allow get, list: if signed() && who == request.auth.uid;
+   allow create: if signed() && (
+      (who == request.auth.uid && getAfter(orgPath(org)).data.ownerUid == who && request.resource.data.role == 'admin') ||
+      (admin(org) && request.resource.data.role == 'operator' && getAfter(memberPath(org, who)).data.role == 'operator')
+   );
+   allow update, delete: if false;
+  }
+ }
+}
